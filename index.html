@@ -11,6 +11,8 @@
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
     body{background:#05050d;font-family:'DM Sans',sans-serif;overflow:hidden;}
     :root{--gold:#c9a84c;--cream:#f0e6c8;--teal:#00c4b8;--purple:#6c3fa0;}
+
+    /* ── DESKTOP: side-by-side grid ── */
     #page{
       width:100vw;height:100vh;
       background:radial-gradient(ellipse at 18% 12%,#12082e 0%,transparent 50%),
@@ -18,6 +20,29 @@
       display:grid;grid-template-columns:1fr 1fr;align-items:center;
       padding:0 8vw;position:relative;overflow:hidden;
     }
+
+    /* ── MOBILE: stack vertically, hero top / can bottom ── */
+    @media(max-width:640px){
+      body{overflow:hidden;}
+      #page{
+        grid-template-columns:1fr;
+        grid-template-rows:auto 1fr;
+        align-items:start;
+        padding:3.5rem 6vw 0;
+        gap:0;
+      }
+      .hero{
+        text-align:center;align-items:center;
+        gap:.9rem;max-width:100%;
+      }
+      .hero-title{font-size:clamp(3.5rem,18vw,6rem);}
+      .subtitle{display:none;}
+      .cta-row{justify-content:center;}
+      .btn-secondary{display:none;}
+      #can-stage{display:none;}
+      .corner{display:none;}
+    }
+
     #page::after{
       content:'';position:fixed;inset:0;pointer-events:none;z-index:20;opacity:.4;
       background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
@@ -45,7 +70,7 @@
       transition:background-position .4s,transform .2s,box-shadow .2s;
       clip-path:polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%);
     }
-    .btn-primary:hover{background-position:100%;transform:translateY(-2px);box-shadow:0 14px 40px rgba(201,168,76,.4);}
+    .btn-primary:hover,.btn-primary:active{background-position:100%;transform:translateY(-2px);box-shadow:0 14px 40px rgba(201,168,76,.4);}
     .btn-secondary{
       background:transparent;color:rgba(240,230,200,.4);border:1px solid rgba(201,168,76,.2);
       padding:.88rem 2rem;font-family:'DM Sans',sans-serif;font-size:.8rem;
@@ -105,24 +130,33 @@
 (function(){
   'use strict';
 
+  // ── Easing ──
   const ease3 = t => 1-Math.pow(1-t,3);
   const ease2 = t => 1-(1-t)*(1-t);
   const eio2  = t => t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
   const lerp  = (a,b,t) => a+(b-a)*t;
   const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
 
-  const CAN_W=200, CAN_H=440;
-  // SVG viewBox: liquid body from y=31 to y=184 (153 units tall)
-  const LIQ_TOP=31, LIQ_BOT=184, LIQ_H=153;
+  // ── Responsive size & positions — MUST be defined before buildSVG ──
+  const MOBILE = () => window.innerWidth <= 640;
+  const CAN_W  = () => MOBILE() ? 130 : 200;
+  const CAN_H  = () => MOBILE() ? 286 : 440;
+  const CX     = () => window.innerWidth  * 0.50;
+  const CY     = () => window.innerHeight * 0.50;
+  const TOP_Y  = () => CAN_H() / 2 + 15;
+  const RST_X  = () => MOBILE() ? window.innerWidth  * 0.50 : window.innerWidth  * 0.75;
+  const RST_Y  = () => MOBILE() ? window.innerHeight * 0.68 : window.innerHeight * 0.50;
 
+  const LIQ_TOP=31, LIQ_BOT=184, LIQ_H=153;
   const NS = 'http://www.w3.org/2000/svg';
 
   /* Build the can using DOM API so elements are proper SVG nodes */
   function buildSVG() {
+    const cw=CAN_W(), ch=CAN_H();
     const svg = document.createElementNS(NS,'svg');
     svg.setAttribute('viewBox','0 0 100 220');
-    svg.setAttribute('width', CAN_W);
-    svg.setAttribute('height', CAN_H);
+    svg.setAttribute('width', cw);
+    svg.setAttribute('height', ch);
     svg.style.overflow='visible';
     svg.style.display='block';
 
@@ -323,15 +357,30 @@
 
   // ── INSERT CAN ──
   const wrap = document.getElementById('can-wrap');
-  wrap.style.cssText = `width:${CAN_W}px;height:${CAN_H}px;position:fixed;pointer-events:none;transform-origin:center center;`;
+  wrap.style.cssText = `position:fixed;pointer-events:none;transform-origin:center center;`;
   wrap.appendChild(buildSVG());
 
-  // Live liquid elements
-  const liqRect  = document.getElementById('liqRect');
-  const foam1    = document.getElementById('foam1');
-  const foam2    = document.getElementById('foam2');
-  const bubGroup = document.getElementById('bubGroup');
-  const liqGroup = document.getElementById('liqGroup');
+  // Rebuild SVG on resize/orientation change (mobile rotation)
+  let resizeTimer;
+  window.addEventListener('resize', ()=>{
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(()=>{
+      wrap.innerHTML='';
+      wrap.appendChild(buildSVG());
+      assignLiveEls();
+    }, 150);
+  });
+
+  // Live liquid element refs — reassigned after SVG rebuild
+  let liqRect, foam1, foam2, bubGroup, liqGroup;
+  function assignLiveEls(){
+    liqRect  = document.getElementById('liqRect');
+    foam1    = document.getElementById('foam1');
+    foam2    = document.getElementById('foam2');
+    bubGroup = document.getElementById('bubGroup');
+    liqGroup = document.getElementById('liqGroup');
+  }
+  assignLiveEls();
 
   // ── SET FILL: directly mutate SVG attributes every frame ──
   function setFill(f) {
@@ -364,7 +413,7 @@
     tpts.push({x,y});if(tpts.length>TN)tpts.shift();
     tdots.forEach((d,i)=>{
       if(i>=tpts.length){d.style.display='none';return;}
-      const pt=tpts[i],age=(i+1)/tpts.length,sz=3+age*16;
+      const pt=tpts[i],age=(i+1)/tpts.length,sz=3+age*14;
       d.style.cssText=`display:block;position:fixed;border-radius:50%;width:${sz}px;height:${sz}px;left:${pt.x-sz/2}px;top:${pt.y-sz/2}px;background:rgba(220,160,40,${age*.28});filter:blur(${Math.max(0,3-age*2.5)}px);`;
     });
   }
@@ -377,25 +426,24 @@
     d.style.cssText=`display:none;width:${4.5-i*.6}px;height:${9+i*5}px;background:rgba(220,160,40,${.85-i*.18});animation-duration:${.65+i*.25}s;animation-delay:${i*.2}s;`;
     document.body.appendChild(d);drips.push(d);
   }
-  function showDrips(x,y){drips.forEach((d,i)=>{d.style.display='block';d.style.left=(x+CAN_W*.18+i*13)+'px';d.style.top=(y+CAN_H*.40)+'px';});}
+  function showDrips(x,y){
+    const cw=CAN_W(),ch=CAN_H();
+    drips.forEach((d,i)=>{d.style.display='block';d.style.left=(x+cw*.18+i*10)+'px';d.style.top=(y+ch*.40)+'px';});
+  }
   function hideDrips(){drips.forEach(d=>d.style.display='none');}
 
   const gone=document.getElementById('all-gone');
 
   function place(x,y,rot,op){
-    wrap.style.left=(x-CAN_W/2)+'px';
-    wrap.style.top=(y-CAN_H/2)+'px';
-    wrap.style.opacity=op;
-    wrap.style.transform=`rotate(${rot}deg)`;
-    wrap.style.filter=`drop-shadow(0 16px 40px rgba(201,140,40,.38)) drop-shadow(0 5px 14px rgba(0,0,0,.9))`;
+    const cw=CAN_W(),ch=CAN_H();
+    wrap.style.width  = cw+'px';
+    wrap.style.height = ch+'px';
+    wrap.style.left   = (x-cw/2)+'px';
+    wrap.style.top    = (y-ch/2)+'px';
+    wrap.style.opacity  = op;
+    wrap.style.transform= `rotate(${rot}deg)`;
+    wrap.style.filter   = `drop-shadow(0 12px 30px rgba(201,140,40,.38)) drop-shadow(0 4px 10px rgba(0,0,0,.9))`;
   }
-
-  const CX   =()=>window.innerWidth *0.50;
-  const CY   =()=>window.innerHeight*0.50;
-  const TOP_Y=()=>CAN_H/2+15;
-  const BOT_Y=()=>window.innerHeight-CAN_H/2-15;
-  const RST_X=()=>window.innerWidth *0.75;
-  const RST_Y=()=>window.innerHeight*0.50;
 
   // PHASES
 
@@ -416,21 +464,17 @@
   */
   function phSwirl(el){
     const DUR=2200, t=Math.min(el/DUR,1);
-
-    // Position easing — easeOutCubic so it decelerates nicely into rest
     const et = ease3(t);
+    const cw=CAN_W();
 
-    // Quadratic bezier for clockwise arc
-    const sx=-CAN_W,  sy=CY();
-    const cx2=CX()*0.5, cy2=TOP_Y()*0.5;   // control point — high & centre-left
+    const sx=-cw,  sy=CY();
+    const cx2=CX()*0.5, cy2=TOP_Y()*0.5;
     const ex=RST_X(), ey=RST_Y();
     const mt=et, mt1=1-mt;
     const x = mt1*mt1*sx + 2*mt1*mt*cx2 + mt*mt*ex;
     const y = mt1*mt1*sy + 2*mt1*mt*cy2 + mt*mt*ey;
 
-    // Clockwise spin: 0 → 720° with easeOutQuad (spins fast then slows)
     const rot = 720 * ease2(t);
-
     const op = clamp(el/200, 0, 1);
     place(x, y, rot, op);
 
@@ -439,16 +483,13 @@
     return t>=1;
   }
 
-  /* PHASE 2 — SETTLE: upright bob after landing */
   function phSettle(el){
     const DUR=600, t=Math.min(el/DUR,1);
-    // Rotation winds down from whatever it ended at (≈0 after 720°) — just ensure 0
     const bob = Math.sin(t*Math.PI*3)*(1-t)*10;
     place(RST_X(), RST_Y()+bob, 0, 1);
     return t>=1;
   }
 
-  /* PHASE 3 — DRAIN */
   function phDrain(el){
     const DUR=5500, t=Math.min(el/DUR,1);
     setFill(1-eio2(t));
@@ -457,17 +498,15 @@
     return t>=1;
   }
 
-  /* PHASE 4 — ALL GONE */
   function phAllGone(el){
     setFill(0); hideDrips();
     gone.style.left   = RST_X()+'px';
-    gone.style.top    = (RST_Y()+CAN_H*0.52)+'px';
+    gone.style.top    = (RST_Y()+CAN_H()*0.52)+'px';
     gone.style.opacity= '1';
     place(RST_X(), RST_Y(), 0, 1);
     return el>=1600;
   }
 
-  /* PHASE 5 — FADE OUT */
   function phFade(el){
     const DUR=700, t=Math.min(el/DUR,1);
     wrap.style.opacity = String(1-t);
@@ -481,7 +520,7 @@
   function init(){
     setFill(1); clearTrail(); hideDrips();
     gone.style.opacity='0';
-    place(-CAN_W, CY(), 0, 0);
+    place(-CAN_W(), CY(), 0, 0);
     phase='swirl'; phStart=null;
   }
 
